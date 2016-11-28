@@ -1,0 +1,73 @@
+version: '2'
+services:
+    dmysql:
+        image: mysql/mysql-server:5.5
+        container_name: dmysql
+        volumes:
+            - ~/docker/exptracker:/var/lib/mysql
+        ports:
+            - "3306:3306"
+        environment:
+            - MYSQL_ROOT_PASSWORD=root
+            - MYSQL_DATABASE=expdb
+            - MYSQL_USER=user1
+            - MYSQL_PASSWORD=passwd
+    myredis:
+        image: redis
+        container_name: myredis
+        # volumes:
+        #     - ~/docker/redis:/data
+        ports:
+            - "6379:6379"
+    exptrack_1:
+        build:
+            context: app/
+        image: expense_app
+        ports:
+            - "5000:5000"
+        depends_on:
+            - dmysql
+            - myredis
+        links:
+            - dmysql:mysqlserver
+            - myredis:redisserver
+        environment:
+            - LISTENPORT=5000
+    exptrack_2:
+        image: expense_app
+        ports:
+            - "5001:5001"
+        depends_on:
+            - dmysql
+            - myredis
+        links:
+            - dmysql:mysqlserver
+            - myredis:redisserver
+        environment:
+            - LISTENPORT=5001
+    exptrack_3:
+        image: expense_app
+        ports:
+            - "5002:5002"
+        depends_on:
+            - dmysql
+            - myredis
+        links:
+            - dmysql:mysqlserver
+            - myredis:redisserver
+        environment:
+            - LISTENPORT=5002
+    proxy:
+        build:
+            context: proxy/
+        image: proxyserver
+        ports:
+            - "9090:9090"
+        depends_on:
+            - dmysql
+            - myredis
+            - exptrack_1
+            - exptrack_3
+            - exptrack_2
+        links:
+            - myredis:redisserver

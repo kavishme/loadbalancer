@@ -1,0 +1,6 @@
+Flask
+Flask-API
+Flask-SQLAlchemy
+PyMySQL
+simplejson
+redis
