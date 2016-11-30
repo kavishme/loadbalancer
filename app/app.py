@@ -84,7 +84,7 @@ def expense(expenseid):
 # run app service 
 if __name__ == "__main__":
 
-    redis_db = redis.StrictRedis(host="myredis", port=6379, db=0)
+    redis_db = redis.StrictRedis(host="redisserver", port=6379, db=0)
     ports = redis_db.get('ports')
     if ports:
         ports = ports.decode('utf-8').split(',')

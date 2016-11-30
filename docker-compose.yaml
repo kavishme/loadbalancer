@@ -33,6 +33,7 @@ services:
             - myredis:redisserver
         environment:
             - LISTENPORT=5000
+            - PYTHONUNBUFFERED=0
     exptrack_2:
         image: expense_app
         ports:
@@ -45,6 +46,7 @@ services:
             - myredis:redisserver
         environment:
             - LISTENPORT=5001
+            - PYTHONUNBUFFERED=0
     exptrack_3:
         image: expense_app
         ports:
@@ -57,17 +59,24 @@ services:
             - myredis:redisserver
         environment:
             - LISTENPORT=5002
-    proxy:
-        build:
-            context: proxy/
-        image: proxyserver
-        ports:
-            - "9090:9090"
-        depends_on:
-            - dmysql
-            - myredis
-            - exptrack_1
-            - exptrack_3
-            - exptrack_2
-        links:
-            - myredis:redisserver
+            - PYTHONUNBUFFERED=0
+    # proxy:
+    #     build:
+    #         context: proxy/
+    #     image: proxyserver
+    #     ports:
+    #         - "9090:9090"
+    #         - "5000"
+    #         - "5001"
+    #         - "5002"
+    #         - "5003"
+    #     depends_on:
+    #         - dmysql
+    #         - myredis
+    #         - exptrack_1
+    #         - exptrack_3
+    #         - exptrack_2
+    #     links:
+    #         - myredis:redisserver
+    #     environment:
+    #         - PYTHONUNBUFFERED=0

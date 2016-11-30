@@ -8,18 +8,24 @@ import select
 import time
 import sys
 import redis
+import queue
 
 # Changing the buffer_size and delay, you can improve the speed and bandwidth.
 # But when buffer get to high or delay go too down, you can broke things
 buffer_size = 4096
 delay = 0.0001
 # forward_to = ('www.google.com', 80)
-redis_db = redis.StrictRedis(host="myredis", port=6379, db=0)
+forwardto = 'localhost'
+redis_db = redis.StrictRedis(host="redisserver", port=6379, db=0)
 ports = redis_db.get('ports')
 if ports:
     ports = ports.decode('utf-8').split(',')
 else:
     ports = []
+
+pq = queue.Queue()
+for p in ports:
+    pq.put(int(p))
 
 class Forward:
     def __init__(self):
@@ -27,11 +33,10 @@ class Forward:
 
     def start(self, host, port):
         try:
-            print host, port
             self.forward.connect((host, port))
             return self.forward
-        except Exception, e:
-            print e
+        except Exception as e:
+            print( e)
             return False
 
 class TheServer:
@@ -63,21 +68,25 @@ class TheServer:
                     self.on_recv()
 
     def on_accept(self):
-        forward = Forward().start(forward_to[0], forward_to[1])
+        p = pq.get()
+        pq.put(p)
+        print("Forwading request to port: ", p)
+        forward = Forward().start(forwardto, p)
+
         clientsock, clientaddr = self.server.accept()
         if forward:
-            print clientaddr, "has connected"
+            print( clientaddr, "has connected")
             self.input_list.append(clientsock)
             self.input_list.append(forward)
             self.channel[clientsock] = forward
             self.channel[forward] = clientsock
         else:
-            print "Can't establish connection with remote server.",
-            print "Closing connection with client side", clientaddr
+            print( "Can't establish connection with remote server.")
+            print( "Closing connection with client side", clientaddr)
             clientsock.close()
 
     def on_close(self):
-        print self.s.getpeername(), "has disconnected"
+        print( self.s.getpeername(), "has disconnected")
         #remove objects from input_list
         self.input_list.remove(self.s)
         self.input_list.remove(self.channel[self.s])
@@ -93,7 +102,7 @@ class TheServer:
     def on_recv(self):
         data = self.data
         # here we can parse and/or modify the data before send forward
-        print data
+        print (data)
         self.channel[self.s].send(data)
 
 if __name__ == '__main__':
@@ -101,5 +110,5 @@ if __name__ == '__main__':
         try:
             server.main_loop()
         except KeyboardInterrupt:
-            print "Ctrl C - Stopping server"
+            print ("Ctrl C - Stopping server")
             sys.exit(1)
