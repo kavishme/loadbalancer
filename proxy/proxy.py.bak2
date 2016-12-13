@@ -8,12 +8,38 @@ import select
 import time
 import sys
 import redis
+import queue
 
 # Changing the buffer_size and delay, you can improve the speed and bandwidth.
 # But when buffer get to high or delay go too down, you can broke things
 buffer_size = 4096
-delay = 0.0001
-forward_to = 'localhost'
+delay = 0.001
+forward_to = ['localhost', 25]
+
+ports = []
+pq = queue.Queue()
+redis_db = redis.StrictRedis(host="localhost", port=6379, db=0)
+
+
+def registerPorts():
+    print('registerPorts')
+    ports = redis_db.get('routeports')
+    if ports:
+        ports = ports.decode('utf-8').split(',')
+    else:
+        ports = []
+    print(ports)
+    pq = queue.Queue()
+    for p in ports:
+        pq.put(int(p))
+    print(pq)
+
+
+def deregisterPort(port):
+    print('deregisterPorts')
+    ports.remove(str(port))
+    redis_db.set('routeports', ','.join(ports))
+    registerPorts()
 
 
 class Forward:
@@ -34,58 +60,43 @@ class TheServer:
     input_list = []
     channel = {}
 
-    def registerPorts(self):
-        print('registerPorts')
-        self.ports = self.redis_db.get('routeports')
-        if self.ports:
-            self.ports = self.ports.decode('utf-8').split(',')
-        else:
-            self.ports = []
-        print(self.ports)
-        self.pq = []
-        for p in self.ports:
-            self.pq.append(int(p))
-        print(self.pq)
-
-    def deregisterPort(self, port):
-        print('deregisterPorts')
-        self.ports.remove(str(port))
-        self.redis_db.set('routeports', ','.join(self.ports))
-        self.registerPorts()
-
     def __init__(self, host, port):
-        self.redis_db = redis.StrictRedis(host="localhost", port=6379, db=0)
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server.bind((host, port))
         self.server.listen(200)
-        self.registerPorts()
 
     def main_loop(self):
         self.input_list.append(self.server)
         while 1:
-            #self.registerPorts()
-            time.sleep(delay)
+            registerPorts()
+            #time.sleep(delay)
             ss = select.select
             inputready, outputready, exceptready = ss(self.input_list, [], [])
             for self.s in inputready:
                 if self.s == self.server:
                     self.on_accept()
+                    print(1)
                     break
 
                 self.data = self.s.recv(buffer_size)
                 if len(self.data) == 0:
                     self.on_close()
+                    print(2)
                     break
                 else:
+                    print(3)
                     self.on_recv()
+            print(4)
 
     def on_accept(self):
-        pport = self.pq[0]
-        self.pq = self.pq[1:]
-        self.pq.append(pport)
-        forward = Forward().start(forward_to, pport)
+        forward_to[1] = pq.get()
+        pq.put(forward_to[1])
+        print(forward_to[1])
+
+        forward = Forward().start(forward_to[0], forward_to[1])
         clientsock, clientaddr = self.server.accept()
+        
         if forward:
             print(clientaddr, "has connected")
             self.input_list.append(clientsock)
@@ -118,7 +129,7 @@ class TheServer:
         self.channel[self.s].send(data)
 
 if __name__ == '__main__':
-    server = TheServer('', 9090)
+    server = TheServer('localhost', 9090)
     try:
         server.main_loop()
     except KeyboardInterrupt:
