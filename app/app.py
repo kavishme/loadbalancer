@@ -85,14 +85,14 @@ def expense(expenseid):
 if __name__ == "__main__":
 
     redis_db = redis.StrictRedis(host="redisserver", port=6379, db=0)
-    ports = redis_db.get('ports')
+    ports = redis_db.get('routeports')
     if ports:
         ports = ports.decode('utf-8').split(',')
     else:
         ports = []
     if os.environ["LISTENPORT"] not in ports:
         ports.append(os.environ["LISTENPORT"])
-    redis_db.set('ports', ','.join(ports))
+    redis_db.set('routeports', ','.join(ports))
 #    createDB(model.HOSTNAME)
     app.run(host="0.0.0.0", port=int(os.environ["LISTENPORT"]), debug=True)
     print(os.environ["LISTENPORT"])

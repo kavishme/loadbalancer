@@ -3,11 +3,14 @@
 # library. If you want to make a suggestion or fix something you can contact-me
 # at voorloop_at_gmail.com
 # Distributed over IDC(I Don't Care) license
-import socket
 import select
-import time
+import socket
 import sys
+import time
+
 import redis
+
+from circuitbreaker import CircuitBreaker
 
 # Changing the buffer_size and delay, you can improve the speed and bandwidth.
 # But when buffer get to high or delay go too down, you can broke things
@@ -20,14 +23,19 @@ class Forward:
 
     def __init__(self):
         self.forward = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+    
+    @CircuitBreaker(max_failure_to_open=3, reset_timeout=10)
     def start(self, host, port):
         try:
             self.forward.connect((host, port))
             return self.forward
         except Exception as e:
+            e.port = port
             print(e)
-            return False
+            raise e
+        # except Exception as e:
+        #     print(e)
+        #     return False
 
 
 class TheServer:
@@ -81,21 +89,30 @@ class TheServer:
                     self.on_recv()
 
     def on_accept(self):
-        pport = self.pq[0]
-        self.pq = self.pq[1:]
-        self.pq.append(pport)
-        forward = Forward().start(forward_to, pport)
-        clientsock, clientaddr = self.server.accept()
-        if forward:
-            print(clientaddr, "has connected")
-            self.input_list.append(clientsock)
-            self.input_list.append(forward)
-            self.channel[clientsock] = forward
-            self.channel[forward] = clientsock
-        else:
-            print("Can't establish connection with remote server.")
-            print("Closing connection with client side", clientaddr)
-            clientsock.close()
+        retry = True
+        while retry:
+            pport = self.pq[0]
+            self.pq = self.pq[1:]
+            self.pq.append(pport)
+            retry = False
+            try:
+                forward = Forward().start(host = forward_to, port = pport)
+                clientsock, clientaddr = self.server.accept()
+                if forward:
+                    print(clientaddr, "has connected")
+                    self.input_list.append(clientsock)
+                    self.input_list.append(forward)
+                    self.channel[clientsock] = forward
+                    self.channel[forward] = clientsock
+                else:
+                    print("Can't establish connection with remote server.")
+                    print("Closing connection with client side", clientaddr)
+                    clientsock.close()
+            except Exception as e:
+                print(e.args)
+                if e.args[0].startswith("Port Failure"):
+                    self.deregisterPort(pport)
+                    retry = True
 
     def on_close(self):
         print(self.s.getpeername(), "has disconnected")

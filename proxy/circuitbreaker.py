@@ -42,7 +42,13 @@ class CircuitBreaker(object):
         return with_circuitbreaker
 
     def call(self, func, *args, **kwargs):
+        print(kwargs)
+        print(args)
         port = kwargs['port']
+        if port not in self._failure_count.keys():
+            self.open(port)
+            self.close(port)
+        
         if not self.can_execute(port):
             err = 'Port Failure %d' % (port)
             raise Exception(err)
@@ -52,7 +58,7 @@ class CircuitBreaker(object):
             self._failure_count[port] += 1
             if self._failure_count[port] >= self._max_failure_to_open:
                 self.open(port)
-            raise
+            raise Exception("Failure")
 
         self.close(port)
         return result
